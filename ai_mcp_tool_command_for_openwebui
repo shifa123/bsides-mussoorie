@@ -1,0 +1,75 @@
+"""
+OpenWebUI Native Tool — MCP Recon
+Calls your Flask server at host.docker.internal:5050
+which has subfinder, httpx, gau, waybackurls, nuclei installed.
+
+Paste into OpenWebUI → Workspace → Tools → Create Tool
+"""
+
+import urllib.request
+import urllib.error
+import json
+
+BASE_URL = "http://host.docker.internal:5050"
+
+
+def _post(endpoint: str, payload: dict) -> str:
+    url = f"{BASE_URL}{endpoint}"
+    data = json.dumps(payload).encode()
+    req = urllib.request.Request(
+        url, data=data, headers={"Content-Type": "application/json"}, method="POST"
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            return resp.read().decode().strip()
+    except urllib.error.HTTPError as e:
+        return f"Error {e.code}: {e.read().decode().strip()}"
+    except urllib.error.URLError as e:
+        return f"Connection error: {e.reason}"
+
+
+class Tools:
+    def __init__(self):
+        self.citation = False
+
+    def run_subfinder(self, domain: str) -> str:
+        """
+        Run subfinder to enumerate subdomains of a domain.
+        :param domain: Target root domain e.g. example.com
+        :return: Newline-separated list of discovered subdomains
+        """
+        return _post("/run-subfinder", {"domain": domain})
+
+    def run_httpx(self, domains: str) -> str:
+        """
+        Run httpx to find live hosts. Pass a comma-separated list of domains.
+        :param domains: Comma-separated domains e.g. sub1.example.com,sub2.example.com
+        :return: Live hosts found
+        """
+        domain_list = [d.strip() for d in domains.split(",") if d.strip()]
+        return _post("/run-httpx", {"domains": domain_list})
+
+    def run_gau(self, domain: str) -> str:
+        """
+        Fetch all known URLs for a domain using GAU (Get All URLs).
+        :param domain: Target domain e.g. example.com
+        :return: Discovered URLs from multiple sources
+        """
+        return _post("/run-gau", {"domain": domain})
+
+    def run_waybackurls(self, domain: str) -> str:
+        """
+        Fetch Wayback Machine URLs for a domain.
+        :param domain: Target domain e.g. example.com
+        :return: Historical URLs from Wayback Machine
+        """
+        return _post("/run-waybackurls", {"domain": domain})
+
+    def run_nuclei(self, urls: str) -> str:
+        """
+        Run Nuclei vulnerability scanner on a comma-separated list of URLs.
+        :param urls: Comma-separated URLs e.g. https://a.com,https://b.com
+        :return: Vulnerability findings
+        """
+        url_list = [u.strip() for u in urls.split(",") if u.strip()]
+        return _post("/run-nuclei", {"urls": url_list})
